@@ -1,29 +1,27 @@
 package cmd
 
-import (
-	"github.com/basic-relayer/src"
+// import (
+// 	"github.com/spf13/cobra"
+// )
 
-	"github.com/spf13/cobra"
-)
+// func init() {
+// 	rootCmd.AddCommand(newServeCmd())
+// }
 
-func init() {
-	rootCmd.AddCommand(newServeCmd())
-}
+// func newServeCmd() *cobra.Command {
 
-func newServeCmd() *cobra.Command {
+// 	return &cobra.Command{
+// 		Use:   "serve",
+// 		Short: "this function will start the application",
+// 		Run: func(cmd *cobra.Command, args []string) {
 
-	return &cobra.Command{
-		Use:   "serve",
-		Short: "this function will start the application",
-		Run: func(cmd *cobra.Command, args []string) {
+// 			//get config file name from args
+// 			online()
+// 		},
+// 	}
+// }
 
-			//get config file name from args
-			online()
-		},
-	}
-}
+// func online() {
 
-func online() {
-
-	src.Start()
-}
+// 	src.Start()
+// }
