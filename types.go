@@ -3,44 +3,47 @@ package main
 import (
 	"fmt"
 
+	"github.com/basic-relayer/icon"
 	"github.com/icon-project/goloop/common/codec"
 	"github.com/icon-project/goloop/common/crypto"
-	"github.com/icon-project/goloop/module"
+	"github.com/icon-project/icon-bridge/cmd/iconbridge/chain/icon/types"
 )
 
 type BtpBlockHeaderFormat struct {
-	MainHeight             int64
-	Round                  int32
+	MainHeight             uint64
+	Round                  uint32
 	NextProofContextHash   []byte
-	NetworkSectionToRoot   []module.MerkleNode
-	NetworkID              int64
-	UpdateNumber           int64
+	NetworkSectionToRoot   []*icon.MerkleNode
+	NetworkId              uint64
+	UpdateNumber           uint64
 	PrevNetworkSectionHash []byte
-	MessageCount           int64
-	MessagesRoot           []byte
+	MessageCount           uint64
+	MessageRoot            []byte
 	NextProofContext       []byte
 }
 
+type Validators []types.HexBytes
+
 type NetworkTypeSection struct {
-	NextProofContextHash []byte
-	NetworkSectionsRoot  []byte
+	NextProofContextHash types.HexBytes
+	NetworkSectionsRoot  types.HexBytes
 }
 
 type NetworkTypeSectionDecision struct {
-	SrcNetworkID           []byte
+	SrcNetworkID           types.HexBytes
 	DstType                int64
 	Height                 int64
 	Round                  int32
-	NetworkTypeSectionHash []byte
+	NetworkTypeSectionHash types.HexBytes
 	// mod                    module.NetworkTypeModule
 }
 
 type NetworkSection struct {
-	Nid          int64
-	UpdateNumber int64
-	Prev         []byte
-	MessageCount int64
-	MessageRoot  []byte
+	Nid          types.HexInt
+	UpdateNumber types.HexInt
+	Prev         types.HexBytes
+	MessageCount types.HexInt
+	MessageRoot  types.HexBytes
 }
 
 type Secp256k1Proof struct {
@@ -53,11 +56,11 @@ func NewNetworkSection(
 ) *NetworkSection {
 
 	return &NetworkSection{
-		Nid:          header.NetworkID,
-		UpdateNumber: header.UpdateNumber,
-		Prev:         header.PrevNetworkSectionHash,
-		MessageCount: header.MessageCount,
-		MessageRoot:  header.MessagesRoot,
+		Nid:          types.NewHexInt(int64(header.NetworkId)),
+		UpdateNumber: types.NewHexInt(int64(header.UpdateNumber)),
+		// Prev:         header.PrevNetworkSectionHash,
+		MessageCount: types.NewHexInt(int64(header.MessageCount)),
+		// MessageRoot:  header.MessageRoot,
 	}
 }
 
@@ -72,11 +75,11 @@ func NewNetworkTypeSectionDecision(SrcNetworkID []byte,
 	networkTypeSection NetworkTypeSection,
 ) *NetworkTypeSectionDecision {
 	return &NetworkTypeSectionDecision{
-		SrcNetworkID,
+		types.NewHexBytes(SrcNetworkID),
 		DstType,
 		Height,
 		Round,
-		networkTypeSection.Hash(),
+		types.NewHexBytes(networkTypeSection.Hash()),
 	}
 }
 

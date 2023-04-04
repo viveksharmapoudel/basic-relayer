@@ -3,16 +3,12 @@ package main
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/hex"
 	"fmt"
-	"io/ioutil"
-	"os"
 
 	"github.com/basic-relayer/icon"
 	types "github.com/basic-relayer/icon"
 
-	cosmos_codec "github.com/cosmos/cosmos-sdk/codec"
-	cosmos_types "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/gogo/protobuf/proto"
 	btpClient "github.com/icon-project/btp/chain/icon/client"
 	"github.com/icon-project/btp/common/log"
@@ -22,6 +18,7 @@ import (
 	"github.com/icon-project/goloop/common/trie/ompt"
 
 	"github.com/gorilla/websocket"
+	icon_bridge_types "github.com/icon-project/icon-bridge/cmd/iconbridge/chain/icon/types"
 )
 
 type IconChainProcessor struct {
@@ -38,17 +35,8 @@ type BtpHeaderInterface interface {
 	proto.Message
 }
 
-func MakeCodec() cosmos_codec.ProtoCodecMarshaler {
-	interfaceRegistry := cosmos_types.NewInterfaceRegistry()
-	interfaceRegistry.RegisterInterface(
-		"/icon.types.v1.BTPHeader",
-		(*BtpHeaderInterface)(nil),
-		&types.BTPHeader{},
-	)
-	marshaler := cosmos_codec.NewProtoCodec(interfaceRegistry)
-
-	// moduleBasics.RegisterInterfaces(interfaceRegistry)
-	return marshaler
+type SignedHeaderInterface interface {
+	proto.Message
 }
 
 func (icp *IconChainProcessor) QueryCycle(ctx context.Context, height int64, networkID int64) {
@@ -75,7 +63,6 @@ func (icp *IconChainProcessor) QueryCycle(ctx context.Context, height int64, net
 	// 	EventFilters: filters,
 	// }
 
-	log.Println("values->", height, "<-->", networkID)
 	go icp.monitorBTP2Block(req, btpMessages, monitorErr)
 	// icp.MonitorIconBlock(reqIconBlock, btpBlockNotifications, monitorErr)
 	for {
@@ -107,11 +94,7 @@ func (icp *IconChainProcessor) MonitorIconBlock(req *btpClient.BlockRequest, inc
 
 	go func() {
 		err := icp.client.MonitorBlock(req, func(conn *websocket.Conn, v *btpClient.BlockNotification) error {
-
-			fmt.Printf("THis is IconMonitorBlock:-> %v\n", v)
-
 			if len(v.Indexes) > 0 && len(v.Events) > 0 {
-
 				incomingEvent <- v
 			}
 
@@ -219,64 +202,75 @@ func (icp *IconChainProcessor) handleBlockEventRequest(request *btpClient.BlockN
 
 }
 
-type TempBtpBlockHeader struct {
-	MainHeight             uint64
-	Round                  uint64
-	NextProofContextHash   btpClient.HexBytes
-	NetworkSectionToRoot   []*icon.MerkleNode
-	NetworkId              uint64
-	UpdateNumber           uint64
-	PrevNetworkSectionHash btpClient.HexBytes
-	MessageCount           int64
-	MessageRoot            btpClient.HexBytes
-	NextValidators         []btpClient.HexBytes
-}
-
 func (icp *IconChainProcessor) monitorBTP2Block(req *btpClient.BTPRequest, msgsChan chan []string, errChan chan error) {
 
 	go func() {
 		err := icp.client.MonitorBTP(req, func(conn *websocket.Conn, v *btpClient.BTPNotification) error {
-			fmt.Println("btp-header", v.Header)
 			h, err := base64.StdEncoding.DecodeString(v.Header)
 			if err != nil {
 				return err
 			}
 
-			bh := types.BTPHeader{}
-			// bh := &BtpBlockHeaderFormat{}
+			// var bhBTP2 TempBtpBlockHeader
+			// if _, err = codec.RLP.UnmarshalFromBytes(h, &bhBTP2); err != nil {
+			// 	return err
+			// }
+
+			// bh := types.BTPHeader{}
+			bh := BtpBlockHeaderFormat{}
 			if _, err = codec.RLP.UnmarshalFromBytes(h, &bh); err != nil {
 				return err
 			}
+			fmt.Println("checkk the value ", bh)
 
-			var bhBTP2 TempBtpBlockHeader
-			if _, err = codec.RLP.UnmarshalFromBytes(h, &bhBTP2); err != nil {
+			proof, err := base64.StdEncoding.DecodeString(v.Proof)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("THis is the proof: %x \n  ", proof)
+
+			type MerkleProof struct {
+				Proof [][]byte
+			}
+			var proofDecoded MerkleProof
+			if _, err = codec.RLP.UnmarshalFromBytes(proof, &proofDecoded); err != nil {
 				return err
 			}
 
-			fmt.Printf("BhBTP2-- %x \n", bhBTP2)
+			var validators [][]byte
+			// fetch Validators from list
+			val, _ := hex.DecodeString("d6d594b040bff300eee91f7665ac8dcf89eb0871015306")
+			validators = append(validators, val)
 
-			// encoded, err := proto.Marshal(bh)
-			// if err != nil {
-			// 	fmt.Println(err)
-			// }
+			signedHeader := icon.SignedHeader{
+				Header: &types.BTPHeader{
+					MainHeight:             bh.MainHeight,
+					Round:                  bh.Round,
+					NextProofContextHash:   bh.NextProofContextHash,
+					NetworkSectionToRoot:   bh.NetworkSectionToRoot,
+					NetworkId:              bh.NetworkId,
+					UpdateNumber:           bh.UpdateNumber,
+					PrevNetworkSectionHash: bh.PrevNetworkSectionHash,
+					MessageCount:           bh.MessageCount,
+					MessageRoot:            bh.MessageRoot,
+					NextValidators:         validators,
+				},
+				Signatures: proofDecoded.Proof,
+			}
 
 			cod := MakeCodec()
-			encoded, err := MarshalJSONAny(cod, &bh)
+			encoded, err := MarshalJSONAny(cod, &signedHeader)
 			if err != nil {
 				fmt.Println(err)
 			}
 
-			op, err := json.Marshal(encoded)
-			fmt.Printf("this is from json marhsal: %x\n", op)
-
-			jsonDumpData(bhBTP2, btpClient.NewHexBytes(encoded))
+			saveSignedHeader(signedHeader, btpClient.NewHexBytes(encoded))
 			// encoded = []byte("0x080b10011a030a141e2206080112020a14280130143a030a141e400a4a0314141e")
 
 			// hb := btpClient.NewHexBytes(encoded)
 
 			// base64Encode := base64.StdEncoding.EncodeToString(encoded)
 
-			log.Printf("BTP header %x \n", encoded)
 			// log.Printf("BTP header %v \n", bh)
 			// var op BtpHeaderInterface
 			// err = UnmarshalJSONAny(cod, &op, encoded)
@@ -334,42 +328,72 @@ func (icp *IconChainProcessor) GetBtpMessage(height int64) ([]string, error) {
 }
 
 func (icp *IconChainProcessor) GetAllTheEvents(height int64) error {
-
 	return nil
 }
 
+type TempBtpBlockHeader struct {
+	MainHeight             uint64
+	Round                  uint32
+	NextProofContextHash   icon_bridge_types.HexBytes
+	NetworkSectionToRoot   []*icon.MerkleNode
+	NetworkId              uint64
+	UpdateNumber           uint64
+	PrevNetworkSectionHash icon_bridge_types.HexBytes
+	MessageCount           uint64
+	MessageRoot            icon_bridge_types.HexBytes
+	NextValidators         []icon_bridge_types.HexBytes
+}
+
+type TempSignedHeader struct {
+	BTPHeader TempBtpBlockHeader
+	Signature []icon_bridge_types.HexBytes
+}
+
 type HeaderANdBuf struct {
-	Header          TempBtpBlockHeader `json:"header"`
+	Header          TempSignedHeader   `json:"signed_header"`
 	EncodedProtobuf btpClient.HexBytes `json:"encoded_protobuf"`
 }
 
-func jsonDumpData(header TempBtpBlockHeader, protobufEncoded btpClient.HexBytes) {
+func saveSignedHeader(signedHeader icon.SignedHeader, protobufEncoded btpClient.HexBytes) {
 
 	filename := "headerDump.json"
-
 	var headerAndbufs []HeaderANdBuf
-
-	// Check if the JSON file exists
-	if _, err := os.Stat(filename); !os.IsNotExist(err) {
-		// Read existing JSON data from file
-		jsonData, err := ioutil.ReadFile(filename)
-		if err != nil {
-			fmt.Println("Error reading JSON from file:", err)
-			os.Exit(1)
-		}
-
-		// Unmarshal JSON data into a slice of structs
-		err = json.Unmarshal(jsonData, &headerAndbufs)
-		if err != nil {
-			fmt.Println("Error unmarshaling JSON data:", err)
-			os.Exit(1)
-		}
+	err := readExistingData(filename, &headerAndbufs)
+	if err != nil {
+		fmt.Println("there is some error while reading the data ")
+		return
 	}
 
-	fmt.Println("check******************************", header)
+	var validators []icon_bridge_types.HexBytes
+	for _, v := range signedHeader.Header.NextValidators {
+		validators = append(validators, icon_bridge_types.NewHexBytes(v))
+	}
+
+	var sig []icon_bridge_types.HexBytes
+	for _, s := range signedHeader.Signatures {
+		sig = append(sig, icon_bridge_types.NewHexBytes(s))
+	}
+
+	tempHeader := TempBtpBlockHeader{
+		MainHeight:             signedHeader.Header.MainHeight,
+		Round:                  signedHeader.Header.Round,
+		NextProofContextHash:   icon_bridge_types.NewHexBytes(signedHeader.Header.NextProofContextHash),
+		NetworkSectionToRoot:   signedHeader.Header.NetworkSectionToRoot,
+		NetworkId:              signedHeader.Header.NetworkId,
+		UpdateNumber:           signedHeader.Header.UpdateNumber,
+		PrevNetworkSectionHash: icon_bridge_types.NewHexBytes(signedHeader.Header.PrevNetworkSectionHash),
+		MessageCount:           signedHeader.Header.MessageCount,
+		MessageRoot:            icon_bridge_types.NewHexBytes(signedHeader.Header.MessageRoot),
+		NextValidators:         validators,
+	}
+
+	tempSignedHeader := TempSignedHeader{
+		BTPHeader: tempHeader,
+		Signature: sig,
+	}
 
 	newHeaderAndBuf := HeaderANdBuf{
-		Header:          header,
+		Header:          tempSignedHeader,
 		EncodedProtobuf: protobufEncoded,
 	}
 
@@ -377,22 +401,7 @@ func jsonDumpData(header TempBtpBlockHeader, protobufEncoded btpClient.HexBytes)
 	// Append the new person to the people slice
 	headerAndbufs = append(headerAndbufs, newHeaderAndBuf)
 
-	// Marshal the slice of structs to JSON format
-	jsonData, err := json.MarshalIndent(headerAndbufs, "", "  ")
-	if err != nil {
-		fmt.Println("Error marshaling slice of structs to JSON:", err)
-		os.Exit(1)
-	}
-
-	// Write JSON data to file
-	err = ioutil.WriteFile(filename, jsonData, 0644)
-	if err != nil {
-		fmt.Println("Error writing JSON to file:", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("Successfully created or appended JSON in headerDump.json")
-
+	jsonDumpDataFile(filename, headerAndbufs)
 }
 
 func mptProve(key btpClient.HexInt, proofs [][]byte, hash []byte) ([]byte, error) {
@@ -414,28 +423,3 @@ func mptProve(key btpClient.HexInt, proofs [][]byte, hash []byte) ([]byte, error
 	}
 	return trie, nil
 }
-
-func MarshalJSONAny(m cosmos_codec.Codec, msg proto.Message) ([]byte, error) {
-	any, err := cosmos_types.NewAnyWithValue(msg)
-	if err != nil {
-		return nil, err
-	}
-	return m.MarshalJSON(any)
-}
-
-func UnmarshalJSONAny(m cosmos_codec.Codec, iface interface{}, bz []byte) error {
-	any := &cosmos_types.Any{}
-
-	err := m.UnmarshalJSON(bz, any)
-	if err != nil {
-		return err
-	}
-
-	return m.UnpackAny(any, iface)
-}
-
-// 0a07736f6d6575726c120a736f6d652076616c7565 hex value of let test_any= Any{
-// 	type_url:"someurl".to_string(),
-// 	value:"some value".as_bytes().to_vec()
-
-//  };
