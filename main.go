@@ -88,13 +88,6 @@ func testBtpMessageProof() {
 		return
 	}
 
-	// []
-
-	// {
-
-	// getBtpMessage
-	//
-	// }
 	messageProofs, err := binaryTree.Proof(2, 2)
 	if err != nil {
 		fmt.Println(err)
