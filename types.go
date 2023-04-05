@@ -12,17 +12,15 @@ import (
 type BtpBlockHeaderFormat struct {
 	MainHeight             uint64
 	Round                  uint32
-	NextProofContextHash   []byte
+	NextProofContextHash   types.HexBytes
 	NetworkSectionToRoot   []*icon.MerkleNode
 	NetworkId              uint64
 	UpdateNumber           uint64
-	PrevNetworkSectionHash []byte
+	PrevNetworkSectionHash types.HexBytes
 	MessageCount           uint64
-	MessageRoot            []byte
+	MessageRoot            types.HexBytes
 	NextProofContext       []byte
 }
-
-type Validators []types.HexBytes
 
 type NetworkTypeSection struct {
 	NextProofContextHash types.HexBytes
@@ -30,19 +28,19 @@ type NetworkTypeSection struct {
 }
 
 type NetworkTypeSectionDecision struct {
-	SrcNetworkID           types.HexBytes
+	SrcNetworkID           []byte
 	DstType                int64
 	Height                 int64
 	Round                  int32
-	NetworkTypeSectionHash types.HexBytes
+	NetworkTypeSectionHash []byte
 	// mod                    module.NetworkTypeModule
 }
 
 type NetworkSection struct {
-	Nid          types.HexInt
-	UpdateNumber types.HexInt
+	Nid          int64
+	UpdateNumber int64
 	Prev         types.HexBytes
-	MessageCount types.HexInt
+	MessageCount int64
 	MessageRoot  types.HexBytes
 }
 
@@ -54,18 +52,17 @@ type Secp256k1Proof struct {
 func NewNetworkSection(
 	header *BtpBlockHeaderFormat,
 ) *NetworkSection {
-
 	return &NetworkSection{
-		Nid:          types.NewHexInt(int64(header.NetworkId)),
-		UpdateNumber: types.NewHexInt(int64(header.UpdateNumber)),
-		// Prev:         header.PrevNetworkSectionHash,
-		MessageCount: types.NewHexInt(int64(header.MessageCount)),
-		// MessageRoot:  header.MessageRoot,
+		Nid:          int64(header.NetworkId),
+		UpdateNumber: int64(header.UpdateNumber),
+		Prev:         header.PrevNetworkSectionHash,
+		MessageCount: int64(header.MessageCount),
+		MessageRoot:  header.MessageRoot,
 	}
 }
 
 func (h *NetworkSection) Hash() []byte {
-	return Keccak256(codec.BC.MustMarshalToBytes(h))
+	return Keccak256(codec.RLP.MustMarshalToBytes(h))
 }
 
 func NewNetworkTypeSectionDecision(SrcNetworkID []byte,
@@ -75,20 +72,20 @@ func NewNetworkTypeSectionDecision(SrcNetworkID []byte,
 	networkTypeSection NetworkTypeSection,
 ) *NetworkTypeSectionDecision {
 	return &NetworkTypeSectionDecision{
-		types.NewHexBytes(SrcNetworkID),
+		SrcNetworkID,
 		DstType,
 		Height,
 		Round,
-		types.NewHexBytes(networkTypeSection.Hash()),
+		(networkTypeSection.Hash()),
 	}
 }
 
 func (h *NetworkTypeSectionDecision) Hash() []byte {
-	return Keccak256(codec.BC.MustMarshalToBytes(h))
+	return Keccak256(codec.RLP.MustMarshalToBytes(h))
 }
 
 func (h *NetworkTypeSection) Hash() []byte {
-	return Keccak256(codec.BC.MustMarshalToBytes(h))
+	return Keccak256(codec.RLP.MustMarshalToBytes(h))
 }
 
 func (header *BtpBlockHeaderFormat) GetNetworkSectionRoot() []byte {

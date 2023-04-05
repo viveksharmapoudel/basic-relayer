@@ -34,7 +34,7 @@ func MakeCodec() cosmos_codec.ProtoCodecMarshaler {
 		&types.BTPHeader{},
 	)
 	interfaceRegistry.RegisterInterface(
-		"icon/types.v1.SignedHeader",
+		"/icon.types.v1.SignedHeader",
 		(*SignedHeaderInterface)(nil),
 		&types.SignedHeader{},
 	)

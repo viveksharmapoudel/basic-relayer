@@ -6,6 +6,7 @@ import (
 
 	"github.com/icon-project/btp/chain/icon/client"
 	"github.com/icon-project/btp/common/mbt"
+	"github.com/icon-project/icon-bridge/cmd/iconbridge/chain/icon/types"
 	"golang.org/x/crypto/sha3"
 
 	mt "github.com/txaty/go-merkletree"
@@ -38,11 +39,11 @@ func main() {
 	// cmd.Execute()
 	// FetchEvent(1500)
 
-	// height := types.HexInt("0x2465")
-	// networkID := types.HexInt("0x1")
-	// ProveBTPMessage(height, networkID)
+	height := types.HexInt("0x1b")
+	networkID := types.HexInt("0x1")
+	ProveBTPMessage(height, networkID)
 
-	testQueryCycle()
+	// testQueryCycle()
 	// testBtpMessageProof()
 	// testMerkleProof()
 

@@ -178,8 +178,6 @@ func (icp *IconChainProcessor) handleBlockEventRequest(request *btpClient.BlockN
 			return
 		}
 
-		fmt.Printf("Receipt: %x\n", serializedReceipt)
-
 		for j := 0; j < len(p.Events); j++ {
 			// nextEP is pointer to event where sequence has caught up
 			serializedEventLog, err := mptProve(
@@ -211,23 +209,34 @@ func (icp *IconChainProcessor) monitorBTP2Block(req *btpClient.BTPRequest, msgsC
 				return err
 			}
 
-			// var bhBTP2 TempBtpBlockHeader
-			// if _, err = codec.RLP.UnmarshalFromBytes(h, &bhBTP2); err != nil {
-			// 	return err
-			// }
-
-			// bh := types.BTPHeader{}
 			bh := BtpBlockHeaderFormat{}
 			if _, err = codec.RLP.UnmarshalFromBytes(h, &bh); err != nil {
 				return err
 			}
-			fmt.Println("checkk the value ", bh)
 
 			proof, err := base64.StdEncoding.DecodeString(v.Proof)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("THis is the proof: %x \n  ", proof)
+
+			// for the verification
+			var btpproof Secp256k1Proof
+			_, err = Base64ToData(v.Proof, &btpproof)
+			if err != nil {
+				log.Println(err)
+				return err
+			}
+
+			decision := NewNetworkTypeSectionDecision(
+				GetSourceNetworkUID(3),
+				int64(bh.NetworkId),
+				int64(bh.MainHeight),
+				int32(bh.Round),
+				NetworkTypeSection{
+					NextProofContextHash: bh.NextProofContextHash,
+					NetworkSectionsRoot:  icon_bridge_types.HexBytes(bh.GetNetworkSectionRoot()),
+				},
+			)
 
 			type MerkleProof struct {
 				Proof [][]byte
@@ -237,34 +246,58 @@ func (icp *IconChainProcessor) monitorBTP2Block(req *btpClient.BTPRequest, msgsC
 				return err
 			}
 
+			// networkInfo, err := icp.GetNetworkTypeInfo(int64(bh.MainHeight), int64(bh.NetworkId))
+			// if err != nil {
+			// 	fmt.Println("error when fetching validators ", err)
+			// 	return err
+			// }
+
+			// fetch Validator
 			var validators [][]byte
+
 			// fetch Validators from list
 			val, _ := hex.DecodeString("d6d594b040bff300eee91f7665ac8dcf89eb0871015306")
 			validators = append(validators, val)
+
+			nextProofContextHash, _ := bh.NextProofContextHash.Value()
+			prevNetworkSectionHash, _ := bh.PrevNetworkSectionHash.Value()
+			messageRoot, _ := bh.MessageRoot.Value()
 
 			signedHeader := icon.SignedHeader{
 				Header: &types.BTPHeader{
 					MainHeight:             bh.MainHeight,
 					Round:                  bh.Round,
-					NextProofContextHash:   bh.NextProofContextHash,
+					NextProofContextHash:   nextProofContextHash,
 					NetworkSectionToRoot:   bh.NetworkSectionToRoot,
 					NetworkId:              bh.NetworkId,
 					UpdateNumber:           bh.UpdateNumber,
-					PrevNetworkSectionHash: bh.PrevNetworkSectionHash,
+					PrevNetworkSectionHash: prevNetworkSectionHash,
 					MessageCount:           bh.MessageCount,
-					MessageRoot:            bh.MessageRoot,
+					MessageRoot:            messageRoot,
 					NextValidators:         validators,
 				},
 				Signatures: proofDecoded.Proof,
 			}
 
+			var validatorAddressList []common.Address
+			for _, v := range validators {
+				validatorAddressList = append(validatorAddressList, *common.NewAccountAddress(v))
+			}
+
+			yes, err := VerifyBtpProof(decision, &btpproof, validatorAddressList)
+			if err != nil {
+				fmt.Println("error when verifying the prooof")
+				return nil
+			}
+			fmt.Println(" it is verified:", yes)
+
 			cod := MakeCodec()
-			encoded, err := MarshalJSONAny(cod, &signedHeader)
+			_, err = MarshalJSONAny(cod, &signedHeader)
 			if err != nil {
 				fmt.Println(err)
 			}
 
-			saveSignedHeader(signedHeader, btpClient.NewHexBytes(encoded))
+			// saveSignedHeader(signedHeader, btpClient.NewHexBytes(encoded))
 			// encoded = []byte("0x080b10011a030a141e2206080112020a14280130143a030a141e400a4a0314141e")
 
 			// hb := btpClient.NewHexBytes(encoded)
@@ -313,6 +346,29 @@ func (icp *IconChainProcessor) monitorBTP2Block(req *btpClient.BTPRequest, msgsC
 			errChan <- err
 		}
 	}()
+}
+
+type BTPQueryParam struct {
+	Height btpClient.HexInt `json:"height,omitempty" validate:"optional,t_int"`
+	Id     btpClient.HexInt `json:"id" validate:"required,t_int"`
+}
+
+type BTPNetworkTypeInfo struct {
+	NetworkTypeName  string             `json:"networkTypeName"`
+	NextProofContext btpClient.HexBytes `json:"nextProofContext"`
+	OpenNetworkIDs   []btpClient.HexInt `json:"openNetworkIDs"`
+	NetworkTypeID    btpClient.HexInt   `json:"networkTypeID"`
+}
+
+func (icp *IconChainProcessor) GetNetworkTypeInfo(height int64, networkId int64) (*BTPNetworkTypeInfo, error) {
+	nti := &BTPNetworkTypeInfo{}
+	if _, err := icp.client.Do("btp_getNetworkTypeInfo", &BTPQueryParam{
+		Height: btpClient.NewHexInt(height),
+		Id:     btpClient.NewHexInt(networkId),
+	}, nti); err != nil {
+		return nil, err
+	}
+	return nti, nil
 }
 
 func (icp *IconChainProcessor) GetBtpMessage(height int64) ([]string, error) {
@@ -397,7 +453,6 @@ func saveSignedHeader(signedHeader icon.SignedHeader, protobufEncoded btpClient.
 		EncodedProtobuf: protobufEncoded,
 	}
 
-	fmt.Println("this is the header header buf ", headerAndbufs)
 	// Append the new person to the people slice
 	headerAndbufs = append(headerAndbufs, newHeaderAndBuf)
 
