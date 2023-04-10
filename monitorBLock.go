@@ -35,7 +35,6 @@ type BtpHeaderInterface interface {
 
 type SignedHeaderInterface interface {
 	proto.Message
-	Check()
 }
 
 func (icp *IconChainProcessor) QueryCycle(ctx context.Context, height int64, networkID int64) {

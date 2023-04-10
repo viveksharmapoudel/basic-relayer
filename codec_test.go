@@ -1,31 +1,43 @@
 package main
 
-// icon_types "github.com/icon-project/ibc-integration/libraries/go/common/icon"
+import (
+	"fmt"
+	"testing"
+
+	types "github.com/basic-relayer/icon"
+)
 
 type IBtpHeader interface {
 }
 
-// func TestBtpHeader(t *testing.T) {
+func TestBtpHeader(t *testing.T) {
 
-// 	interfaceRegistry := types.NewInterfaceRegistry()
-// 	interfaceRegistry.RegisterInterface("icon.types.v1.HeaderI", (*IBtpHeader)(nil))
-// 	interfaceRegistry.RegisterImplementations((*IBtpHeader)(nil), &icon_types.BTPHeader{})
+	codec := MakeCodec()
 
-// 	marshaler := codec.NewProtoCodec(interfaceRegistry)
+	interfaces := codec.InterfaceRegistry().ListAllInterfaces()
 
-// 	m := &icon_types.BTPHeader{
-// 		MainHeight: 20,
-// 	}
+	if len(interfaces) == 0 {
+		fmt.Println("no interface registered")
+		t.Fail()
+	}
 
-// 	fmt.Println("check this value::::")
-// 	fmt.Println(marshaler)
+	impls := codec.InterfaceRegistry().ListImplementations(interfaces[0])
 
-// 	fmt.Println("check this out ", marshaler.InterfaceRegistry().ListAllInterfaces())
-// 	fmt.Println("implementations: ", interfaceRegistry.ListImplementations("icon.types.v1.HeaderI"))
+	if len(impls) == 0 {
+		fmt.Println("no implementation registered error")
+		t.Fail()
+	}
 
-// 	x, _ := types.NewAnyWithValue(m)
+	header := types.BTPHeader{
+		MainHeight: 20,
+	}
 
-// 	b, _ := marshaler.MarshalJSON(x)
-// 	fmt.Printf("output: %s \n", b)
+	encodedByte, err := MarshalJSONAny(codec, &header)
+	if err != nil {
+		fmt.Println("error getting any encode", encodedByte)
+		t.Fail()
+	}
 
-// }
+	fmt.Printf("output %s \n", encodedByte)
+
+}
