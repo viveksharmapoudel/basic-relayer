@@ -17,6 +17,7 @@ import (
 const (
 	// ENDPOINT              = "http://138.197.69.76:9000/api/v3/icon_dex"
 	ENDPOINT              = "http://localhost:9082/api/v3/"
+	TESTNET_ENDPOINT      = "http://localhost:9082/api/v3/"
 	WSS_ENDPOINT          = "wss://ctz.solidwallet.io/api/v3/icon_dex/event"
 	SEND_PACKET_SIGNATURE = "Message(str,int,bytes)"
 	CONTRACT_ADDRESS      = "cx0000000000000000000000000000000000000000"
@@ -43,7 +44,6 @@ func main() {
 	networkID := types.HexInt("0x1")
 	ProveBTPMessage(height, networkID)
 
-	// testQueryCycle()
 	// testBtpMessageProof()
 	// testMerkleProof()
 

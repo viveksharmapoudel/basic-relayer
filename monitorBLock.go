@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/basic-relayer/icon"
@@ -37,6 +35,7 @@ type BtpHeaderInterface interface {
 
 type SignedHeaderInterface interface {
 	proto.Message
+	Check()
 }
 
 func (icp *IconChainProcessor) QueryCycle(ctx context.Context, height int64, networkID int64) {
@@ -204,100 +203,93 @@ func (icp *IconChainProcessor) monitorBTP2Block(req *btpClient.BTPRequest, msgsC
 
 	go func() {
 		err := icp.client.MonitorBTP(req, func(conn *websocket.Conn, v *btpClient.BTPNotification) error {
-			h, err := base64.StdEncoding.DecodeString(v.Header)
+
+			var bh BtpBlockHeaderFormat
+			_, err := Base64ToData(v.Header, &bh)
 			if err != nil {
-				return err
+				log.Println("issue in one ", err)
+				panic(err)
 			}
 
-			bh := BtpBlockHeaderFormat{}
-			if _, err = codec.RLP.UnmarshalFromBytes(h, &bh); err != nil {
-				return err
-			}
-
-			proof, err := base64.StdEncoding.DecodeString(v.Proof)
-			if err != nil {
-				return err
-			}
-
-			// for the verification
 			var btpproof Secp256k1Proof
 			_, err = Base64ToData(v.Proof, &btpproof)
 			if err != nil {
-				log.Println(err)
+				log.Println("issue in two", err)
 				return err
 			}
 
-			decision := NewNetworkTypeSectionDecision(
-				GetSourceNetworkUID(3),
-				int64(bh.NetworkId),
-				int64(bh.MainHeight),
-				int32(bh.Round),
-				NetworkTypeSection{
-					NextProofContextHash: bh.NextProofContextHash,
-					NetworkSectionsRoot:  icon_bridge_types.HexBytes(bh.GetNetworkSectionRoot()),
-				},
-			)
+			// decision := NewNetworkTypeSectionDecision(
+			// 	GetSourceNetworkUID(3),
+			// 	int64(bh.NetworkId),
+			// 	int64(bh.MainHeight),
+			// 	int32(bh.Round),
+			// 	NetworkTypeSection{
+			// 		NextProofContextHash: bh.NextProofContextHash,
+			// 		NetworkSectionsRoot:  (bh.GetNetworkSectionRoot()),
+			// 	},
+			// )
 
-			type MerkleProof struct {
-				Proof [][]byte
+			var signatures [][]byte
+			for _, s := range btpproof.Signatures {
+				b, _ := icon_bridge_types.HexBytes(s.String()).Value()
+				fmt.Println("check the value ")
+				signatures = append(signatures, b)
 			}
-			var proofDecoded MerkleProof
-			if _, err = codec.RLP.UnmarshalFromBytes(proof, &proofDecoded); err != nil {
-				return err
-			}
-
-			// networkInfo, err := icp.GetNetworkTypeInfo(int64(bh.MainHeight), int64(bh.NetworkId))
-			// if err != nil {
-			// 	fmt.Println("error when fetching validators ", err)
-			// 	return err
-			// }
 
 			// fetch Validator
-			var validators [][]byte
+			validators, err := ValidatorsByProofContext(int64(bh.MainHeight), int64(bh.NetworkId))
+			if err != nil {
+				log.Println("issue in three", err)
 
-			// fetch Validators from list
-			val, _ := hex.DecodeString("d6d594b040bff300eee91f7665ac8dcf89eb0871015306")
-			validators = append(validators, val)
+				return err
+			}
 
-			nextProofContextHash, _ := bh.NextProofContextHash.Value()
-			prevNetworkSectionHash, _ := bh.PrevNetworkSectionHash.Value()
-			messageRoot, _ := bh.MessageRoot.Value()
+			var validatorHex [][]byte
+			for _, v := range validators {
+				validatorHex = append(validatorHex, v.Bytes())
+			}
 
 			signedHeader := icon.SignedHeader{
 				Header: &types.BTPHeader{
 					MainHeight:             bh.MainHeight,
 					Round:                  bh.Round,
-					NextProofContextHash:   nextProofContextHash,
+					NextProofContextHash:   bh.NextProofContextHash,
 					NetworkSectionToRoot:   bh.NetworkSectionToRoot,
 					NetworkId:              bh.NetworkId,
 					UpdateNumber:           bh.UpdateNumber,
-					PrevNetworkSectionHash: prevNetworkSectionHash,
+					PrevNetworkSectionHash: bh.PrevNetworkSectionHash,
 					MessageCount:           bh.MessageCount,
-					MessageRoot:            messageRoot,
-					NextValidators:         validators,
+					MessageRoot:            bh.MessageRoot,
+					NextValidators:         validatorHex,
 				},
-				Signatures: proofDecoded.Proof,
+				Signatures: signatures,
 			}
 
-			var validatorAddressList []common.Address
-			for _, v := range validators {
-				validatorAddressList = append(validatorAddressList, *common.NewAccountAddress(v))
-			}
+			// yes, err := VerifyBtpProof(decision, &btpproof, validatorAddressList)
+			// if err != nil {
+			// 	fmt.Println("error when verifying the prooof")
+			// 	return nil
+			// }
+			// fmt.Println(" it is verified:", yes)
 
-			yes, err := VerifyBtpProof(decision, &btpproof, validatorAddressList)
+			// cod := MakeCodec()
+			// encoded, err := MarshalJSONAny(cod, &signedHeader)
+			// if err != nil {
+			// 	fmt.Println(err)
+			// }
+
+			// var decodedHeader SignedHeaderInterface
+			// err = UnmarshalJSONAny(cod, &decodedHeader, encoded)
+			// if err != nil {
+			// 	fmt.Println(err)
+			// }
+
+			encoded, err := proto.Marshal(&signedHeader)
 			if err != nil {
-				fmt.Println("error when verifying the prooof")
-				return nil
+				fmt.Println("there is some error ")
+				return err
 			}
-			fmt.Println(" it is verified:", yes)
-
-			cod := MakeCodec()
-			_, err = MarshalJSONAny(cod, &signedHeader)
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			// saveSignedHeader(signedHeader, btpClient.NewHexBytes(encoded))
+			saveSignedHeader(signedHeader, btpClient.NewHexBytes(encoded))
 			// encoded = []byte("0x080b10011a030a141e2206080112020a14280130143a030a141e400a4a0314141e")
 
 			// hb := btpClient.NewHexBytes(encoded)
@@ -355,7 +347,7 @@ type BTPQueryParam struct {
 
 type BTPNetworkTypeInfo struct {
 	NetworkTypeName  string             `json:"networkTypeName"`
-	NextProofContext btpClient.HexBytes `json:"nextProofContext"`
+	NextProofContext string             `json:"nextProofContext"`
 	OpenNetworkIDs   []btpClient.HexInt `json:"openNetworkIDs"`
 	NetworkTypeID    btpClient.HexInt   `json:"networkTypeID"`
 }

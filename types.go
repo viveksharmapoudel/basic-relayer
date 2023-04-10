@@ -6,25 +6,24 @@ import (
 	"github.com/basic-relayer/icon"
 	"github.com/icon-project/goloop/common/codec"
 	"github.com/icon-project/goloop/common/crypto"
-	"github.com/icon-project/icon-bridge/cmd/iconbridge/chain/icon/types"
 )
 
 type BtpBlockHeaderFormat struct {
 	MainHeight             uint64
 	Round                  uint32
-	NextProofContextHash   types.HexBytes
+	NextProofContextHash   []byte
 	NetworkSectionToRoot   []*icon.MerkleNode
 	NetworkId              uint64
 	UpdateNumber           uint64
-	PrevNetworkSectionHash types.HexBytes
+	PrevNetworkSectionHash []byte
 	MessageCount           uint64
-	MessageRoot            types.HexBytes
+	MessageRoot            []byte
 	NextProofContext       []byte
 }
 
 type NetworkTypeSection struct {
-	NextProofContextHash types.HexBytes
-	NetworkSectionsRoot  types.HexBytes
+	NextProofContextHash []byte
+	NetworkSectionsRoot  []byte
 }
 
 type NetworkTypeSectionDecision struct {
@@ -39,14 +38,14 @@ type NetworkTypeSectionDecision struct {
 type NetworkSection struct {
 	Nid          int64
 	UpdateNumber int64
-	Prev         types.HexBytes
+	Prev         []byte
 	MessageCount int64
-	MessageRoot  types.HexBytes
+	MessageRoot  []byte
 }
 
 type Secp256k1Proof struct {
 	Signatures []*crypto.Signature
-	bytes      []byte
+	Bytes      []byte
 }
 
 func NewNetworkSection(
@@ -84,7 +83,15 @@ func (h *NetworkTypeSectionDecision) Hash() []byte {
 	return Keccak256(codec.RLP.MustMarshalToBytes(h))
 }
 
-func (h *NetworkTypeSection) Hash() []byte {
+func (h *NetworkTypeSectionDecision) Encode() []byte {
+	return codec.RLP.MustMarshalToBytes(h)
+}
+
+func (h NetworkTypeSection) Encode() []byte {
+	return codec.RLP.MustMarshalToBytes(h)
+}
+
+func (h NetworkTypeSection) Hash() []byte {
 	return Keccak256(codec.RLP.MustMarshalToBytes(h))
 }
 
