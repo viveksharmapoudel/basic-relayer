@@ -6,7 +6,6 @@ import (
 
 	"github.com/icon-project/btp/chain/icon/client"
 	"github.com/icon-project/btp/common/mbt"
-	"github.com/icon-project/icon-bridge/cmd/iconbridge/chain/icon/types"
 	"golang.org/x/crypto/sha3"
 
 	mt "github.com/txaty/go-merkletree"
@@ -16,9 +15,10 @@ import (
 
 const (
 	// ENDPOINT              = "http://138.197.69.76:9000/api/v3/icon_dex"
-	ENDPOINT              = "http://localhost:9082/api/v3/"
-	TESTNET_ENDPOINT      = "http://localhost:9082/api/v3/"
-	WSS_ENDPOINT          = "wss://ctz.solidwallet.io/api/v3/icon_dex/event"
+	ENDPOINT         = "http://localhost:9082/api/v3/"
+	TESTNET_ENDPOINT = "http://localhost:9082/api/v3/"
+	// WSS_ENDPOINT          = "wss://ctz.solidwallet.io/api/v3/icon_dex/event"
+	BERLIN_ENDPOINT       = "https://berlin.net.solidwallet.io/api/v3/"
 	SEND_PACKET_SIGNATURE = "Message(str,int,bytes)"
 	CONTRACT_ADDRESS      = "cx0000000000000000000000000000000000000000"
 	BTP_SIGNATURE         = "BTPMessage(int,int)"
@@ -40,10 +40,11 @@ func main() {
 	// cmd.Execute()
 	// FetchEvent(1500)
 
-	height := types.HexInt("0x1b")
-	networkID := types.HexInt("0x1")
-	ProveBTPMessage(height, networkID)
+	// height := types.HexInt("0x10")
+	// networkID := types.HexInt("0x5")
+	// ProveBTPMessage(height, networkID)
 
+	testQueryCycle()
 	// testBtpMessageProof()
 	// testMerkleProof()
 
@@ -64,7 +65,7 @@ func testQueryCycle() {
 	processor := NewIconChainProcessor(ENDPOINT)
 
 	ctx := context.Background()
-	processor.QueryCycle(ctx, 10, 1)
+	processor.QueryCycle(ctx, 10, 5)
 }
 
 func testBtpMessageProof() {

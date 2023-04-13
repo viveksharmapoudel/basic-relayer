@@ -1,0 +1,50 @@
+[
+  {
+    "signed_header": {
+      "BTPHeader": {
+        "MainHeight": 8838,
+        "Round": 0,
+        "NextProofContextHash": "0xd090304264eeee3c3562152f2dc355601b0b423a948824fd0a012c11c3fc2fb4",
+        "NetworkSectionToRoot": [{
+          "Dir":1,
+          "value":"0x7634feb3c398bd62e865c5db3db2d5b8d65f008653bf8a39dc72ab383b33b35b"
+        }],
+        "NetworkId": 5,
+        "UpdateNumber": 4,
+        "PrevNetworkSectionHash": "0x37273937efb28ee1cde07280731484186337080b6eab19c5077c884794af2fdf",
+        "MessageCount": 1,
+        "MessageRoot": "0x1d3e959a209edac3c177894763ed624417a4b1ce3bbc33b188ca137ed8198b0e",
+        "NextValidators": [
+          "0x00b040bff300eee91f7665ac8dcf89eb0871015306"
+        ]
+      },
+      "Signature": [
+        "0x1fe5b781182c145e484e7808ca08d124f1813c44bd056a1526b185b3a8d7b81009cde33a1d1534539cb0394b86901667b956881b362649922b5de1aa56d471b601"
+      ]
+    }
+  },
+  {
+    "signed_header": {
+      "BTPHeader": {
+        "MainHeight": 8838,
+        "Round": 0,
+        "NextProofContextHash": "0xd090304264eeee3c3562152f2dc355601b0b423a948824fd0a012c11c3fc2fb4",
+        "NetworkSectionToRoot": [{
+          "Dir":0,
+          "value":"0x382888d06ae3867b1be42665f40c0234be5f3d9bd82d811ca29b1e75eff1d1b7"
+        }],
+        "NetworkId": 6,
+        "UpdateNumber": 4,
+        "PrevNetworkSectionHash": "0x145eef1bcacb3da9d9af16dc691024e5bf4a55e7257241d86ff4de5aac954039",
+        "MessageCount": 1,
+        "MessageRoot": "0x1d3e959a209edac3c177894763ed624417a4b1ce3bbc33b188ca137ed8198b0e",
+        "NextValidators": [
+          "0x00b040bff300eee91f7665ac8dcf89eb0871015306"
+        ]
+      },
+      "Signature": [
+        "0x1fe5b781182c145e484e7808ca08d124f1813c44bd056a1526b185b3a8d7b81009cde33a1d1534539cb0394b86901667b956881b362649922b5de1aa56d471b601"
+      ]
+    }
+  }
+]

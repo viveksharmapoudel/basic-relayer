@@ -14,18 +14,22 @@ import (
 	"github.com/icon-project/goloop/common/codec"
 	"github.com/icon-project/goloop/common/db"
 	"github.com/icon-project/goloop/common/trie/ompt"
+	"github.com/icon-project/goloop/server"
 
 	"github.com/gorilla/websocket"
+	goloop_client "github.com/icon-project/goloop/client"
 	icon_bridge_types "github.com/icon-project/icon-bridge/cmd/iconbridge/chain/icon/types"
 )
 
 type IconChainProcessor struct {
-	client btpClient.Client
+	client       btpClient.Client
+	clientGoloop goloop_client.ClientV3
 }
 
 func NewIconChainProcessor(url string) *IconChainProcessor {
 	return &IconChainProcessor{
-		client: *btpClient.NewClient(url, log.GlobalLogger()),
+		client:       *btpClient.NewClient(url, log.GlobalLogger()),
+		clientGoloop: *goloop_client.NewClientV3(url),
 	}
 }
 
@@ -42,19 +46,22 @@ func (icp *IconChainProcessor) QueryCycle(ctx context.Context, height int64, net
 	// btpBlockNotifications := make(chan *btpClient.BlockNotification, 1000)
 	monitorErr := make(chan error, 1)
 
-	req := &btpClient.BTPRequest{
-		Height:    btpClient.NewHexInt(height),
-		NetworkID: btpClient.NewHexInt(1),
-		ProofFlag: btpClient.NewHexInt(1),
+	req := &server.BTPRequest{
+		Height:    common.HexInt64{Value: 9000},
+		NetworkId: common.HexInt64{Value: 5},
+		ProofFlag: common.HexBool{Value: true},
 	}
 
 	var filters []*btpClient.EventFilter
 	filters = append(filters, &btpClient.EventFilter{
 		// Addr: "cxfffe383e4780084e48e477935099b03193d952fe",
+		// Signature: "BTPMessage(int,int)",
 		Signature: "SendPacket(bytes)",
-	}, &btpClient.EventFilter{
-		Signature: "CreateClient(str,bytes)",
-	})
+	},
+	//  &btpClient.EventFilter{
+	// 	Signature: "CreateClient(str,bytes)",
+	// }
+	)
 
 	// reqIconBlock := &btpClient.BlockRequest{
 	// 	Height:       btpClient.NewHexInt(height),
@@ -198,24 +205,26 @@ func (icp *IconChainProcessor) handleBlockEventRequest(request *btpClient.BlockN
 
 }
 
-func (icp *IconChainProcessor) monitorBTP2Block(req *btpClient.BTPRequest, msgsChan chan []string, errChan chan error) {
+func (icp *IconChainProcessor) monitorBTP2Block(req *server.BTPRequest, msgsChan chan []string, errChan chan error) {
+
+	cancelChan := make(chan bool, 2)
 
 	go func() {
-		err := icp.client.MonitorBTP(req, func(conn *websocket.Conn, v *btpClient.BTPNotification) error {
+		err := icp.clientGoloop.MonitorBtp(req, func(v *server.BTPNotification) {
 
 			var bh BtpBlockHeaderFormat
 			_, err := Base64ToData(v.Header, &bh)
 			if err != nil {
-				log.Println("issue in one ", err)
+				log.Println(" issue in one ", err)
 				panic(err)
 			}
 
-			var btpproof Secp256k1Proof
-			_, err = Base64ToData(v.Proof, &btpproof)
-			if err != nil {
-				log.Println("issue in two", err)
-				return err
-			}
+			// var btpproof Secp256k1Proof
+			// _, err = Base64ToData(v.Proof, &btpproof)
+			// if err != nil {
+			// 	log.Println(" issue in two ", err)
+			// 	return err
+			// }
 
 			// decision := NewNetworkTypeSectionDecision(
 			// 	GetSourceNetworkUID(3),
@@ -229,18 +238,16 @@ func (icp *IconChainProcessor) monitorBTP2Block(req *btpClient.BTPRequest, msgsC
 			// )
 
 			var signatures [][]byte
-			for _, s := range btpproof.Signatures {
-				b, _ := icon_bridge_types.HexBytes(s.String()).Value()
-				fmt.Println("check the value ")
-				signatures = append(signatures, b)
-			}
+			// for _, s := range btpproof.Signatures {
+			// 	b, _ := icon_bridge_types.HexBytes(s.String()).Value()
+			// 	fmt.Println("check the value ")
+			// 	signatures = append(signatures, b)
+			// }
 
 			// fetch Validator
 			validators, err := ValidatorsByProofContext(int64(bh.MainHeight), int64(bh.NetworkId))
 			if err != nil {
 				log.Println("issue in three", err)
-
-				return err
 			}
 
 			var validatorHex [][]byte
@@ -286,7 +293,6 @@ func (icp *IconChainProcessor) monitorBTP2Block(req *btpClient.BTPRequest, msgsC
 			encoded, err := proto.Marshal(&signedHeader)
 			if err != nil {
 				fmt.Println("there is some error ")
-				return err
 			}
 			saveSignedHeader(signedHeader, btpClient.NewHexBytes(encoded))
 			// encoded = []byte("0x080b10011a030a141e2206080112020a14280130143a030a141e400a4a0314141e")
@@ -324,14 +330,7 @@ func (icp *IconChainProcessor) monitorBTP2Block(req *btpClient.BTPRequest, msgsC
 			// }
 			// fmt.Println("roothash of MBT:", mt.Root())
 
-			return nil
-		}, func(conn *websocket.Conn) {
-			log.Println(fmt.Sprintf("ReceiveLoop monitorBTP2Block"))
-		}, func(conn *websocket.Conn, err error) {
-			log.Println(fmt.Sprintf("onError %s err:%+v", conn.LocalAddr().String(), err))
-			_ = conn.Close()
-			errChan <- err
-		})
+		}, cancelChan)
 
 		if err != nil {
 			errChan <- err
